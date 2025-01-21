@@ -10,6 +10,8 @@ const JWT_SECRET = "your_jwt_secret_key"; // Replace with a strong secret
 
 // Middleware
 app.use(bodyParser.json());
+const cors = require("cors");
+app.use(cors());
 
 // MongoDB Connection
 const MONGO_URI = "mongodb+srv://user:fluttertrainer%401234@cluster0.6da5u.mongodb.net/myDatabase?retryWrites=true&w=majority"; // Update with your MongoDB connection string
