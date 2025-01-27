@@ -69,7 +69,7 @@ app.post("/register", async (req, res) => {
     await user.save();
     res.status(201).json({ message: "User registered successfully" });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ message: err.message });
   }
 });
 
@@ -87,7 +87,7 @@ app.post("/login", async (req, res) => {
     const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: "1h" });
     res.status(200).json({ message: "Login successful", token });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ message: err.message });
   }
 });
 
