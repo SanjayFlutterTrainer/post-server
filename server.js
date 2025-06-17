@@ -3,50 +3,47 @@ const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const cors = require("cors");
 
 const app = express();
 const PORT = 3000;
-const JWT_SECRET = "your_jwt_secret_key"; // Replace with a strong secret
+const JWT_SECRET = "your_jwt_secret_key";
 
-// Middleware
-app.use(bodyParser.json());
-const cors = require("cors");
 app.use(cors());
+app.use(bodyParser.json());
 
 // MongoDB Connection
-const MONGO_URI = "mongodb+srv://user:fluttertrainer%401234@cluster0.6da5u.mongodb.net/myDatabase?retryWrites=true&w=majority"; // Update with your MongoDB connection string
-mongoose
-  .connect(MONGO_URI)
+const MONGO_URI = "your_mongodb_url_here";
+mongoose.connect(MONGO_URI)
   .then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
-// User Schema and Model
+// User Schema
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
 });
-
 const User = mongoose.model("User", userSchema);
 
-// Task Schema and Model (formerly "notes")
-const taskSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  title: { type: String, required: true },
-  description: { type: String, required: true },
+// Product Schema
+const productSchema = new mongoose.Schema({
+  name: String,
+  description: String,
+  price: Number,
+  stock: Number,
+  imageUrl: String,
 });
+const Product = mongoose.model("Product", productSchema);
 
-const Task = mongoose.model("Task", taskSchema);
-
-// Post Schema and Model
-const postSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  title: { type: String, required: true },
-  content: { type: String, required: true },
+// Cart Schema
+const cartItemSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  productId: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
+  quantity: Number,
 });
+const CartItem = mongoose.model("CartItem", cartItemSchema);
 
-const Post = mongoose.model("Post", postSchema);
-
-// JWT Middleware for Authentication
+// Middleware for JWT
 const authenticateToken = (req, res, next) => {
   const token = req.header("Authorization")?.replace("Bearer ", "");
   if (!token) return res.status(401).json({ error: "Access Denied" });
@@ -59,151 +56,101 @@ const authenticateToken = (req, res, next) => {
 };
 
 // Routes
-// 1. User Registration
 app.post("/register", async (req, res) => {
   const { username, password } = req.body;
-
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ username, password: hashedPassword });
-    await user.save();
-    res.status(201).json({ message: "User registered successfully" });
+    const hashed = await bcrypt.hash(password, 10);
+    await new User({ username, password: hashed }).save();
+    res.status(201).json({ message: "User registered" });
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    res.status(400).json({ error: err.message });
   }
 });
 
-// 2. User Login
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
-
   try {
     const user = await User.findOne({ username });
-    if (!user) return res.status(400).json({ message: "User not found" });
+    if (!user || !(await bcrypt.compare(password, user.password)))
+      return res.status(400).json({ message: "Invalid credentials" });
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
-
-    const token = jwt.sign({ userId: user._id, username: user.username }, JWT_SECRET, { expiresIn: "1h" });
-    res.status(200).json({ message: "Login successful", token });
+    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: "1h" });
+    res.json({ message: "Login successful", token });
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// TASK ROUTES
-// 3. Create Task
-app.post("/tasks", authenticateToken, async (req, res) => {
-  const { title, description } = req.body;
-  const userId = req.user.userId;
-
+// Product Routes
+app.post("/products", authenticateToken, async (req, res) => {
   try {
-    const task = new Task({ userId, title, description });
-    await task.save();
-    res.status(201).json({ message: "Task created successfully", task });
+    const product = new Product(req.body);
+    await product.save();
+    res.status(201).json({ message: "Product added", product });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// 4. Get Tasks (by User ID)
-app.get("/tasks", authenticateToken, async (req, res) => {
-  const userId = req.user.userId;
-
+app.get("/products", async (req, res) => {
   try {
-    const tasks = await Task.find({ userId });
-    res.status(200).json(tasks);
+    const products = await Product.find();
+    res.json(products);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Cart Routes
+app.post("/cart", authenticateToken, async (req, res) => {
+  const { productId, quantity } = req.body;
+  const userId = req.user.userId;
+  try {
+    let cartItem = await CartItem.findOne({ userId, productId });
+    if (cartItem) {
+      cartItem.quantity += quantity;
+    } else {
+      cartItem = new CartItem({ userId, productId, quantity });
+    }
+    await cartItem.save();
+    res.status(201).json({ message: "Item added to cart", cartItem });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// 5. Update Task
-app.put("/tasks/:id", authenticateToken, async (req, res) => {
-  const { id } = req.params;
-  const { title, description } = req.body;
-  const userId = req.user.userId;
-
+app.get("/cart", authenticateToken, async (req, res) => {
   try {
-    const task = await Task.findOneAndUpdate({ _id: id, userId }, { title, description }, { new: true });
-    if (!task) return res.status(404).json({ error: "Task not found or not authorized" });
-    res.status(200).json({ message: "Task updated successfully", task });
+    const cart = await CartItem.find({ userId: req.user.userId }).populate("productId");
+    res.json(cart);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// 6. Delete Task
-app.delete("/tasks/:id", authenticateToken, async (req, res) => {
-  const { id } = req.params;
-  const userId = req.user.userId;
-
+app.put("/cart/:id", authenticateToken, async (req, res) => {
+  const { quantity } = req.body;
   try {
-    const task = await Task.findOneAndDelete({ _id: id, userId });
-    if (!task) return res.status(404).json({ error: "Task not found or not authorized" });
-    res.status(200).json({ message: "Task deleted successfully" });
+    const cartItem = await CartItem.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user.userId },
+      { quantity },
+      { new: true }
+    );
+    if (!cartItem) return res.status(404).json({ error: "Item not found" });
+    res.json({ message: "Cart updated", cartItem });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// POST ROUTES
-// 7. Create Post
-app.post("/posts", authenticateToken, async (req, res) => {
-  const { title, content } = req.body;
-  const userId = req.user.userId;
-
+app.delete("/cart/:id", authenticateToken, async (req, res) => {
   try {
-    const post = new Post({ userId, title, content });
-    await post.save();
-    res.status(201).json({ message: "Post created successfully", post });
+    const result = await CartItem.findOneAndDelete({ _id: req.params.id, userId: req.user.userId });
+    if (!result) return res.status(404).json({ error: "Item not found" });
+    res.json({ message: "Item removed from cart" });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// 8. Get Posts (by User ID)
-app.get("/posts", authenticateToken, async (req, res) => {
-  const userId = req.user.userId;
-
-  try {
-    const posts = await Post.find({ userId });
-    res.status(200).json(posts);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// 9. Update Post
-app.put("/posts/:id", authenticateToken, async (req, res) => {
-  const { id } = req.params;
-  const { title, content } = req.body;
-  const userId = req.user.userId;
-
-  try {
-    const post = await Post.findOneAndUpdate({ _id: id, userId }, { title, content }, { new: true });
-    if (!post) return res.status(404).json({ error: "Post not found or not authorized" });
-    res.status(200).json({ message: "Post updated successfully", post });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// 10. Delete Post
-app.delete("/posts/:id", authenticateToken, async (req, res) => {
-  const { id } = req.params;
-  const userId = req.user.userId;
-
-  try {
-    const post = await Post.findOneAndDelete({ _id: id, userId });
-    if (!post) return res.status(404).json({ error: "Post not found or not authorized" });
-    res.status(200).json({ message: "Post deleted successfully" });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// Start the Server
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`eShop server running on http://localhost:${PORT}`));
