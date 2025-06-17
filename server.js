@@ -13,7 +13,7 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // MongoDB Connection
-const MONGO_URI = "your_mongodb_url_here";
+const MONGO_URI = "mongodb+srv://user:fluttertrainer%401234@cluster0.6da5u.mongodb.net/myDatabase?retryWrites=true&w=majority";
 mongoose.connect(MONGO_URI)
   .then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.error("MongoDB connection error:", err));
