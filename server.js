@@ -82,7 +82,7 @@ app.post("/login", async (req, res) => {
 });
 
 // Product Routes
-app.post("/products", authenticateToken, async (req, res) => {
+app.post("/products", async (req, res) => {
   try {
     const product = new Product(req.body);
     await product.save();
