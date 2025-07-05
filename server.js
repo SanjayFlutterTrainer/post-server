@@ -153,4 +153,54 @@ app.delete("/cart/:id", authenticateToken, async (req, res) => {
   }
 });
 
+
+// ---------------------------
+// ✅ PUBLIC ROUTES (No Token)
+// ---------------------------
+
+// Public GET products (same as /products, just demo)
+app.get("/public-products", async (req, res) => {
+  try {
+    const products = await Product.find();
+    res.json(products);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Public POST feedback
+app.post("/feedback", async (req, res) => {
+  const { username, message } = req.body;
+  res.status(200).json({ message: `Thanks ${username}, feedback received.` });
+});
+
+// Public PUT to update stock of product (unsafe for real-world!)
+app.put("/update-stock/:id", async (req, res) => {
+  const { stock } = req.body;
+  try {
+    const product = await Product.findByIdAndUpdate(
+      req.params.id,
+      { stock },
+      { new: true }
+    );
+    if (!product) return res.status(404).json({ error: "Product not found" });
+    res.json({ message: "Stock updated", product });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Public DELETE product (unsafe for real-world!)
+app.delete("/delete-product/:id", async (req, res) => {
+  try {
+    const result = await Product.findByIdAndDelete(req.params.id);
+    if (!result) return res.status(404).json({ error: "Product not found" });
+    res.json({ message: "Product deleted" });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+
+// Start Server
 app.listen(PORT, () => console.log(`eShop server running on http://localhost:${PORT}`));
