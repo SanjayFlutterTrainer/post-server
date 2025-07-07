@@ -100,6 +100,38 @@ app.get("/products", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+app.put("/products/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedProduct = await Product.findByIdAndUpdate(id, req.body, {
+      new: true, // return the updated document
+      runValidators: true,
+    });
+
+    if (!updatedProduct) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    res.json({ message: "Product updated", product: updatedProduct });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete("/products/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deletedProduct = await Product.findByIdAndDelete(id);
+
+    if (!deletedProduct) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    res.json({ message: "Product deleted", product: deletedProduct });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Cart Routes
 app.post("/cart", authenticateToken, async (req, res) => {
